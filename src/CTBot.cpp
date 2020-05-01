@@ -1,12 +1,13 @@
 #define ARDUINOJSON_USE_LONG_LONG 1 // for using int_64 data
+#include "CTBot.h"
+#include "Utilities.h"
 #include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
 #include <WiFiClientSecure.h>
-#include "CTBot.h"
-#include "Utilities.h"
 
-#define TELEGRAM_URL  "api.telegram.org"
-#define TELEGRAM_IP   "149.154.167.220" // "149.154.167.198" <-- Old IP
+
+#define TELEGRAM_URL "api.telegram.org"
+#define TELEGRAM_IP "149.154.167.220" // "149.154.167.198" <-- Old IP
 #define TELEGRAM_PORT 443
 // get fingerprints from https://www.grc.com/fingerprints.htm
 const uint8_t fingerprint[20] = { 0xF2, 0xAD, 0x29, 0x9C, 0x34, 0x48, 0xDD, 0x8D, 0xF4, 0xCF, 0x52, 0x32, 0xF6, 0x57, 0x33, 0x68, 0x2E, 0x81, 0xC1, 0x90 };
@@ -35,7 +36,7 @@ CTBot::~CTBot() = default;
 String CTBot::sendCommand(String command, String parameters)
 {
 #if CTBOT_USE_FINGERPRINT == 0
-	WiFiClientSecure telegramServer;
+    WiFiClientSecure telegramServer;
 #else
 	BearSSL::WiFiClientSecure telegramServer;
 	telegramServer.setFingerprint(m_fingerprint);
@@ -183,20 +184,15 @@ String CTBot::toUTF8(String message) const
 	return converted;
 }
 
-void CTBot::useDNS(bool value)
-{	m_useDNS = value; }
+void CTBot::useDNS(bool value) { m_useDNS = value; }
 
-void CTBot::enableUTF8Encoding(bool value) 
-{	m_UTF8Encoding = value;}
+void CTBot::enableUTF8Encoding(bool value) { m_UTF8Encoding = value; }
 
-void CTBot::setMaxConnectionRetries(uint8_t retries)
-{	m_wifiConnectionTries = retries;}
+void CTBot::setMaxConnectionRetries(uint8_t retries) { m_wifiConnectionTries = retries; }
 
-void CTBot::setStatusPin(int8_t pin)
-{	m_statusPin = pin;}
+void CTBot::setStatusPin(int8_t pin) { m_statusPin = pin; }
 
-void CTBot::setTelegramToken(String token)
-{	m_token = token;}
+void CTBot::setTelegramToken(String token) { m_token = token; }
 
 bool CTBot::testConnection(){
 	TBUser user;
@@ -208,27 +204,28 @@ bool CTBot::getMe(TBUser &user) {
 	if (response.length() == 0)
 		return false;
 
-#pragma message  "ArduinoJson - DA CONVERTIRE"
+#pragma message "ArduinoJson - DA CONVERTIRE"
 #if CTBOT_BUFFER_SIZE > 0
-	StaticJsonBuffer<CTBOT_BUFFER_SIZE> jsonBuffer;
+    StaticJsonBuffer<CTBOT_BUFFER_SIZE> jsonBuffer;
 #else
-	DynamicJsonBuffer jsonBuffer;
+    DynamicJsonBuffer jsonBuffer;
 #endif
-	JsonObject& root = jsonBuffer.parse(response);
+    JsonObject &root = jsonBuffer.parse(response);
 
-	bool ok = root["ok"];
-	if (!ok) {
+    bool ok = root["ok"];
+    if(!ok)
+    {
 #if CTBOT_DEBUG_MODE > 0
-		serialLog("getMe error:");
-		root.printTo(Serial);
-		serialLog("\n");
+        serialLog("getMe error:");
+        root.printTo(Serial);
+        serialLog("\n");
 #endif
 		return false;
 	}
 
 #if CTBOT_DEBUG_MODE > 0
-	root.printTo(Serial);
-	serialLog("\n");
+    root.printTo(Serial);
+    serialLog("\n");
 #endif
 
 	user.id           = root["result"]["id"];
@@ -254,37 +251,38 @@ CTBotMessageType CTBot::getNewMessage(TBMessage &message) {
 	String response = sendCommand("getUpdates", parameters);
 	if (response.length() == 0) {
 #if CTBOT_DEBUG_MODE > 0
-		serialLog("getNewMessage error: response with no data\n");
+        serialLog("getNewMessage error: response with no data\n");
 #endif
 		return CTBotMessageNoData;
 	}
 
-#pragma message  "ArduinoJson - DA CONVERTIRE"
+#pragma message "ArduinoJson - DA CONVERTIRE"
 #if CTBOT_BUFFER_SIZE > 0
-	StaticJsonBuffer<CTBOT_BUFFER_SIZE> jsonBuffer;
+    StaticJsonBuffer<CTBOT_BUFFER_SIZE> jsonBuffer;
 #else
-	DynamicJsonBuffer jsonBuffer;
+    DynamicJsonBuffer jsonBuffer;
 #endif
 
-	if (m_UTF8Encoding)
-		response = toUTF8(response);
+    if(m_UTF8Encoding)
+        response = toUTF8(response);
 
-	JsonObject& root = jsonBuffer.parse(response);
+    JsonObject &root = jsonBuffer.parse(response);
 
-	bool ok = root["ok"];
-	if (!ok) {
+    bool ok = root["ok"];
+    if(!ok)
+    {
 #if CTBOT_DEBUG_MODE > 0
-		serialLog("getNewMessage error: ");
-		root.prettyPrintTo(Serial);
-		serialLog("\n");
+        serialLog("getNewMessage error: ");
+        root.prettyPrintTo(Serial);
+        serialLog("\n");
 #endif
 		return CTBotMessageNoData;
 	}
 
 #if CTBOT_DEBUG_MODE > 0
-	serialLog("getNewMessage JSON: ");
-	root.prettyPrintTo(Serial);
-	serialLog("\n");
+    serialLog("getNewMessage JSON: ");
+    root.prettyPrintTo(Serial);
+    serialLog("\n");
 #endif
 
 	uint32_t updateID = root["result"][0]["update_id"].as<int32_t>();
@@ -346,105 +344,233 @@ CTBotMessageType CTBot::getNewMessage(TBMessage &message) {
 	return CTBotMessageNoData;
 }
 
-bool CTBot::sendMessage(int64_t id, String message, String keyboard)
+int32_t CTBot::sendMessage(int64_t id, String message, String keyboard)
 {
 	if (0 == message.length())
 		return false;
 
 	String strID = int64ToAscii(id);
 
-	message = URLEncodeMessage(message); //-------------------------------------------------------------------------------------------------------------------------------------
+    message = URLEncodeMessage(message); //-------------------------------------------------------------------------------------------------------------------------------------
 
 	String parameters = (String)"?chat_id=" + strID + (String)"&text=" + message;
 
-	if (keyboard.length() != 0)
-		parameters += (String)"&reply_markup=" + keyboard;
+    if(keyboard.length() != 0)
+        parameters += (String) "&reply_markup=" + keyboard;
 
 	String response = sendCommand("sendMessage", parameters);
 	if (response.length() == 0) {
 #if CTBOT_DEBUG_MODE > 0
-		serialLog("SendMessage error: response with no data\n");
+        serialLog("SendMessage error: response with no data\n");
 #endif
 		return false;
 	}
 
-#pragma message  "ArduinoJson - DA CONVERTIRE"
+#pragma message "ArduinoJson - DA CONVERTIRE"
 #if CTBOT_BUFFER_SIZE > 0
-	StaticJsonBuffer<CTBOT_BUFFER_SIZE> jsonBuffer;
+    StaticJsonBuffer<CTBOT_BUFFER_SIZE> jsonBuffer;
 #else
-	DynamicJsonBuffer jsonBuffer;
+    DynamicJsonBuffer jsonBuffer;
 #endif
-	JsonObject& root = jsonBuffer.parse(response);
+    JsonObject &root = jsonBuffer.parse(response);
 
-	bool ok = root["ok"];
-	if (!ok) {
+    bool ok = root["ok"];
+    if(!ok)
+    {
 #if CTBOT_DEBUG_MODE > 0
-		serialLog("SendMessage error: ");
-		root.prettyPrintTo(Serial);
-		serialLog("\n");
+        serialLog("SendMessage error: ");
+        root.prettyPrintTo(Serial);
+        serialLog("\n");
 #endif
 		return false;
 	}
 
 #if CTBOT_DEBUG_MODE > 0
-	serialLog("SendMessage JSON: ");
-	root.prettyPrintTo(Serial);
-	serialLog("\n");
+    serialLog("SendMessage JSON: ");
+    root.prettyPrintTo(Serial);
+    serialLog("\n");
 #endif
 
 	return true;
 }
 
-bool CTBot::sendMessage(int64_t id, String message, CTBotInlineKeyboard &keyboard) {
+int32_t CTBot::sendMessage(int64_t id, String message, CTBotInlineKeyboard &keyboard) {
 	return sendMessage(id, message, keyboard.getJSON());
 }
 
-bool CTBot::sendMessage(int64_t id, String message, CTBotReplyKeyboard &keyboard) {
+int32_t CTBot::sendMessage(int64_t id, String message, CTBotReplyKeyboard &keyboard) {
 	return sendMessage(id, message, keyboard.getJSON());
+}
+int32_t CTBot::editMessage(int64_t id, int64_t msg_id, String message, String keyboard)
+{
+    const String strID = int64ToAscii(id);
+    const String strMsgID = int64ToAscii(msg_id);
+
+    message = URLEncodeMessage(message);
+
+    String parameters = (String) "?chat_id=" + strID + (String) "&message_id=" + strMsgID + (String) "&text=" + message;
+
+    if(keyboard.length() != 0)
+        parameters += (String) "&reply_markup=" + keyboard;
+
+    const String response = sendCommand("editMessageText", parameters);
+    if(response.length() == 0)
+    {
+#if CTBOT_DEBUG_MODE > 0
+        serialLog("SendMessage error: response with no data\n");
+#endif
+        return 0;
+    }
+
+#pragma message "ArduinoJson - DA CONVERTIRE"
+#if CTBOT_BUFFER_SIZE > 0
+    StaticJsonBuffer<CTBOT_BUFFER_SIZE> jsonBuffer;
+#else
+    DynamicJsonBuffer jsonBuffer;
+#endif
+    JsonObject &root = jsonBuffer.parse(response);
+
+    bool ok = root["ok"];
+    if(!ok)
+    {
+#if CTBOT_DEBUG_MODE > 0
+        serialLog("SendMessage error: ");
+        root.prettyPrintTo(Serial);
+        serialLog("\n");
+#endif
+        return 0;
+    }
+
+#if CTBOT_DEBUG_MODE > 0
+    serialLog("SendMessage JSON: ");
+    root.prettyPrintTo(Serial);
+    serialLog("\n");
+#endif
+
+    return root["result"]["message_id"];
+}
+
+int32_t CTBot::editMessage(int64_t id, int64_t msg_id, String message, const CTBotInlineKeyboard &keyboard)
+{
+    return editMessage(id, msg_id, std::move(message), keyboard.getJSON());
+}
+
+int32_t CTBot::editKeyboard(int64_t id, int64_t msg_id, String keyboard)
+{
+    const String strID = int64ToAscii(id);
+    const String strMsgID = int64ToAscii(msg_id);
+
+    String parameters = (String) "?chat_id=" + strID + (String) "&message_id=" + strMsgID;
+
+    if(keyboard.length() != 0)
+        parameters += (String) "&reply_markup=" + keyboard;
+
+    const String response = sendCommand("editMessageReplyMarkup", parameters);
+    if(response.length() == 0)
+    {
+        serialLog("SendMessage error: response with no data\n");
+        return 0;
+    }
+
+#pragma message "ArduinoJson - DA CONVERTIRE"
+#if CTBOT_BUFFER_SIZE > 0
+    StaticJsonBuffer<CTBOT_BUFFER_SIZE> jsonBuffer;
+#else
+    DynamicJsonBuffer jsonBuffer;
+#endif
+   JsonObject &root = jsonBuffer.parse(response);
+
+    bool ok = root["ok"];
+    if(!ok)
+    {
+#if CTBOT_DEBUG_MODE > 0
+        serialLog("SendMessage error: ");
+        root.prettyPrintTo(Serial);
+        serialLog("\n");
+#endif
+        return 0;
+    }
+
+#if CTBOT_DEBUG_MODE > 0
+    serialLog("SendMessage JSON: ");
+    root.prettyPrintTo(Serial);
+    serialLog("\n");
+#endif
+
+    return root["result"]["message_id"];
+}
+
+bool CTBot::deleteMessage(int64_t id, int64_t msg_id)
+{
+    String strID = int64ToAscii(id);
+    String strMsgID = int64ToAscii(msg_id);
+    String parameters = "?chat_id=" + strID + "&message_id=" + strMsgID;
+    String response = sendCommand("deleteMessage", parameters);
+    if(response.length() == 0)
+    {
+        serialLog("deleteMessage error: response with no data\n");
+        return false;
+    }
+
+#pragma message "ArduinoJson - DA CONVERTIRE"
+#if CTBOT_BUFFER_SIZE > 0
+    StaticJsonBuffer<CTBOT_BUFFER_SIZE> jsonBuffer;
+#else
+    DynamicJsonBuffer jsonBuffer;
+#endif
+    JsonObject &root = jsonBuffer.parse(response);
+
+    bool ok = root["ok"];
+    return ok;
 }
 
 bool CTBot::endQuery(String queryID, String message, bool alertMode)
 {
-	if (0 == queryID.length())
-		return false;
+    if(0 == queryID.length())
+        return false;
 
-	String parameters = (String)"?callback_query_id=" + queryID;
+    String parameters = (String) "?callback_query_id=" + queryID;
 
-	if (message.length() != 0) {
-		
-		message = URLEncodeMessage(message); //---------------------------------------------------------------------------------------------------------------------------------
+    if(message.length() != 0)
+    {
 
-		if (alertMode)
-			parameters += (String)"&text=" + message + (String)"&show_alert=true";
-		else
-			parameters += (String)"&text=" + message + (String)"&show_alert=false";
-	}
+        message = URLEncodeMessage(message); //---------------------------------------------------------------------------------------------------------------------------------
 
+        if(alertMode)
+            parameters += (String) "&text=" + message + (String) "&show_alert=true";
+        else
+            parameters += (String) "&text=" + message + (String) "&show_alert=false";
+    }
 	String response = sendCommand("answerCallbackQuery", parameters);
 	if (response.length() == 0)
 		return false;
 
-#pragma message  "ArduinoJson - DA CONVERTIRE"
-#if CTBOT_BUFFER_SIZE > 0
-	StaticJsonBuffer<CTBOT_BUFFER_SIZE> jsonBuffer;
-#else
-	DynamicJsonBuffer jsonBuffer;
-#endif
-	JsonObject& root = jsonBuffer.parse(response);
+    response = sendCommand("answerCallbackQuery", parameters);
+    if(response.length() == 0)
+        return (false);
 
-	bool ok = root["ok"];
-	if (!ok) {
+#pragma message "ArduinoJson - DA CONVERTIRE"
+#if CTBOT_BUFFER_SIZE > 0
+    StaticJsonBuffer<CTBOT_BUFFER_SIZE> jsonBuffer;
+#else
+    DynamicJsonBuffer jsonBuffer;
+#endif
+    JsonObject &root = jsonBuffer.parse(response);
+
+    bool ok = root["ok"];
+    if(!ok)
+    {
 #if CTBOT_DEBUG_MODE > 0
-		serialLog("answerCallbackQuery error:");
-		root.prettyPrintTo(Serial);
-		serialLog("\n");
+        serialLog("answerCallbackQuery error:");
+        root.prettyPrintTo(Serial);
+        serialLog("\n");
 #endif
 		return false;
 	}
 
 #if CTBOT_DEBUG_MODE > 0
-	root.printTo(Serial);
-	serialLog("\n");
+    root.printTo(Serial);
+    serialLog("\n");
 #endif
 
 	return true;
@@ -464,10 +590,10 @@ bool CTBot::removeReplyKeyboard(int64_t id, String message, bool selective)
 	return sendMessage(id, message, command);
 }
 
-void CTBot::setFingerprint(const uint8_t * newFingerprint)
+void CTBot::setFingerprint(const uint8_t *newFingerprint)
 {
-	for (int i = 0; i < 20; i++)
-		m_fingerprint[i] = newFingerprint[i];
+    for(int i = 0; i < 20; i++)
+        m_fingerprint[i] = newFingerprint[i];
 }
 
 bool CTBot::setIP(String ip, String gateway, String subnetMask, String dns1, String dns2) const {
@@ -513,9 +639,9 @@ bool CTBot::wifiConnect(String ssid, String password) const
 	serialLog(message);
 
 #if CTBOT_STATION_MODE > 0
-	WiFi.mode(WIFI_STA);
+    WiFi.mode(WIFI_STA);
 #else
-	WiFi.mode(WIFI_AP_STA);
+    WiFi.mode(WIFI_AP_STA);
 #endif
 	delay(500);
 
@@ -553,3 +679,30 @@ bool CTBot::wifiConnect(String ssid, String password) const
 	}
 }
 
+bool CTBot::setMyCommands(String commands)
+{
+    String response;
+
+    if(0 == commands.length())
+        return false;
+
+    commands = URLEncodeMessage(commands);
+    commands = (String) "?commands=" + commands;
+
+    response = sendCommand("setMyCommands", commands);
+    if(response.length() == 0)
+    {
+        return false;
+    }
+
+#pragma message "ArduinoJson - DA CONVERTIRE"
+#if CTBOT_BUFFER_SIZE > 0
+    StaticJsonBuffer<CTBOT_BUFFER_SIZE> jsonBuffer;
+#else
+    DynamicJsonBuffer jsonBuffer;
+#endif
+    JsonObject &root = jsonBuffer.parse(response);
+
+    bool ok = root["ok"];
+    return ok;
+}
